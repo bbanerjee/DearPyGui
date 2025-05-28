@@ -231,6 +231,7 @@ class AsyncPyVistaViewer:
             
             # Set up background processing
             # self.plotter.add_timer_callback(self._process_messages, 50)  # Check every 50ms
+            # self.plotter.add_timer_event(10000, 50, self._process_messages)
             
             # Show the plotter (non-blocking in this context)
             self.plotter.add_key_event('space', self._process_messages)

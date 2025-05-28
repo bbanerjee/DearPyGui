@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional
 import pyvista as pv
 import threading
 import time
+from pyvista_imgui import ImguiPlotter
 
 class STLReader:
     """Simple STL file reader supporting both ASCII and binary formats"""
@@ -192,7 +193,8 @@ class PyVistaViewer:
     def _run_viewer(self):
         """Run the PyVista plotter"""
         try:
-            self.plotter = pv.Plotter(window_size=(800, 600), title="CAD 3D Viewer")
+            #self.plotter = pv.Plotter(window_size=(800, 600), title="CAD 3D Viewer")
+            self.plotter = ImguiPlotter(window_size=(800, 600), title="CAD 3D Viewer")
             self.plotter.add_text("Load an STL file to begin", position='upper_left', font_size=12)
             
             # Set up a nice viewing angle
