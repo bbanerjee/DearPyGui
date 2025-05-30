@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use numpy::ndarray::{ArrayD, ArrayViewD};
+use ndarray::Array;
 use numpy::{PyReadonlyArrayDyn, IntoPyArray, PyArrayDyn};
 
 fn xpy(x: ArrayViewD<'_, i32>, y: ArrayViewD<'_, i32>) -> ArrayD<i32> {
@@ -35,6 +36,6 @@ mod tests {
         let arr1 = Array::from_vec(vec![1, 2, 3, 4]).into_dyn();
         let arr2 = Array::from_vec(vec![5, 6, 7, 8]).into_dyn();
         let res = arr1 + arr2;
-        assert_eq!(result.into_raw_vec(), vec![6, 8, 10, 12]);
+        assert_eq!(res.into_raw_vec_and_offset().0, vec![6, 8, 10, 12]);
     }
 }
