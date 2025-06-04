@@ -3,3 +3,6 @@ pygui_env
 CAD_3D_Viewer.ini
 target
 Cargo.lock
+build
+*.a
+*.so
