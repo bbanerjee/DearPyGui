@@ -42,6 +42,7 @@ impl StlReader {
                 file.seek(SeekFrom::Start(0))?;
                 Self::read_ascii_stl(&mut file)?
             } else {
+                println!("Reading binary stl");
                 Self::read_binary_stl(&mut file)?
             };
 
@@ -95,6 +96,7 @@ impl StlReader {
         f.seek(SeekFrom::Start(80))?;
 
         let num_tri = f.read_u32::<LittleEndian>()?;
+        println!("num_tri {}", num_tri);
 
         let mut verts: Vec<[f32; 3]> = Vec::new();
         let mut faces: Vec<[u32; 3]> = Vec::new();
@@ -112,6 +114,7 @@ impl StlReader {
                 let z = f.read_f32::<LittleEndian>()?;
 
                 let vert = [x, y, z];
+                println!("vert = {}{}{} ", x, y, z);
 
                 let i64_vert = Self::quantize_vert(vert, precision);
 
@@ -229,7 +232,7 @@ impl StlReader {
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn stl_reader_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn pyo3_pyvista_example(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StlReader>()?;
     Ok(())
 }
