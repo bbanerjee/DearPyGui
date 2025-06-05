@@ -1,0 +1,6 @@
+{
+    "cmake.sourceDirectory": "/home/banerjee/DearPyGui/nb_point_gen/src_cpp",
+    "python.analysis.extraPaths": [
+        "build/python_lib"
+    ]
+}
