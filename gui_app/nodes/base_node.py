@@ -20,7 +20,14 @@ class BaseNode:
 
     def create_node_ui_base(self):
         print(f"Creating UI for node: {self.name} tag: {self.node_tag} parent: {self.app.node_editor_tag}")
-        with dpg.node(label=self.name, tag=self.node_tag, parent=self.app.node_editor_tag):
+
+        # Auto positioning
+        pos = self.app.get_next_node_position()
+
+        with dpg.node(label=self.name, 
+                      tag=self.node_tag, 
+                      parent=self.app.node_editor_tag,
+                      pos=pos):
             with dpg.node_attribute(tag=self.input_attr, attribute_type=dpg.mvNode_Attr_Input):
                 dpg.add_text(self.name)
 

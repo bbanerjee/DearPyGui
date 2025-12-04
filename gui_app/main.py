@@ -1,23 +1,66 @@
 import dearpygui.dearpygui as dpg
 import pymeshlab
 import os
+import platform
 
 from app import get_app_singleton
 from nodes.base_node import BaseNode
 from nodes.import_geometry import ImportGeometryNode
+from nodes.geometry_builder import GeometryBuilderNode
 from nodes.mesh_clean import MeshCleanNode
 from nodes.generate_mesh import GenerateMeshNode
+from nodes.problem_setup import ProblemSetupNode
 from nodes.solver import SolverNode
 from nodes.postprocess import PostProcessNode
 
 # Global registry for nodes
 NODE_REGISTRY = {
     "ImportGeometryNode": ImportGeometryNode,
+    "GeometryBuilderNode": GeometryBuilderNode,
     "MeshCleanNode": MeshCleanNode,
     "GenerateMeshNode": GenerateMeshNode,
+    "ProblemSetupNode": ProblemSetupNode,
     "SolverNode": SolverNode,
     "PostProcessNode": PostProcessNode,
 }
+
+PROPERTY_EDITOR_TAG = "property_editor"
+
+def clear_property_editor():
+    dpg.delete_item(PROPERTY_EDITOR_TAG, children_only=True)
+    dpg.add_text("Select a node to edit properties", parent=PROPERTY_EDITOR_TAG)
+
+def show_node_properties(node_instance):
+    clear_property_editor()
+    if not node_instance or not hasattr(node_instance, "edit_properties"):
+        dpg.add_text("This node has no editable properties", parent=PROPERTY_EDITOR_TAG)
+        return
+
+    with dpg.group(parent=PROPERTY_EDITOR_TAG):
+        node_instance.edit_properties()
+
+def on_node_click(sender, app_data):
+    """Handles left-click on nodes — updates property editor"""
+    # app_data[1] is the item clicked (node tag)
+    clicked_item = app_data[1]
+    item_type = dpg.get_item_type(clicked_item)
+
+    if item_type == dpg.mvItemType_Node:  # It's a node!
+        app = get_app_singleton()
+        node = app.nodes.get(clicked_item)
+
+        # Search sub-nodes if not found in main graph
+        if not node:
+            for main_node in list(app.nodes.values()):
+                if hasattr(main_node, "sub_nodes") and main_node.sub_nodes:
+                    node = main_node.sub_nodes.get(clicked_item)
+                    if node:
+                        break
+
+        if node:
+            show_node_properties(node)
+        else:
+            clear_property_editor()
 
 def create_node_callback(sender, app_data, user_data):
     node_class = NODE_REGISTRY[user_data]
@@ -89,7 +132,29 @@ def delink_callback(sender, app_data):
     del LINKS[link_id]
     dpg.delete_item(link_id)
 
-import platform
+
+def node_selected(sender, app_data):
+    selected_nodes = dpg.get_selected_nodes(sender)
+    if not selected_nodes:
+        clear_property_editor()
+        return
+    
+    node_tag = selected_nodes[0]  # take first selected
+
+    # Search in main nodes and all open sub-editors
+    node = get_app_singleton().nodes.get(node_tag)
+    if not node:
+        # Search inside any ProblemSetup sub-nodes
+        for main_node in get_app_singleton().nodes.values():
+            if hasattr(main_node, "sub_nodes"):
+                node = main_node.sub_nodes.get(node_tag)
+                if node:
+                    break
+
+    if node and hasattr(node, "edit_properties"):
+        show_node_properties(node)
+    else:
+        clear_property_editor()
 
 def load_vscode_font():
     with dpg.font_registry():
@@ -148,7 +213,7 @@ def create_light_theme():
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (235, 235, 245, 255))
             
             # Text
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (30, 30, 35, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (20, 20, 25, 255))
             dpg.add_theme_color(dpg.mvThemeCol_TextDisabled, (140, 140, 150, 255))
             
             # Title bar
@@ -157,9 +222,9 @@ def create_light_theme():
             dpg.add_theme_color(dpg.mvThemeCol_TitleBgCollapsed, (240, 240, 245, 255))
             
             # Buttons
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (225, 225, 235, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (210, 210, 225, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (195, 195, 215, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (200, 200, 215, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (180, 180, 200, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (160, 160, 185, 255))
             
             # Headers
             dpg.add_theme_color(dpg.mvThemeCol_Header, (220, 220, 235, 255))
@@ -261,6 +326,13 @@ dpg.create_viewport(title='Engineering Pipeline Studio', width=1600, height=1000
 app = get_app_singleton()
 #dpg.set_item_user_data("app", app)          # cheap way to make it reachable from callback
 
+# Add handler IMMEDIATELY after context/viewport, wrapped in registry
+with dpg.handler_registry(tag="global_node_selector"):  # Clean registry tag
+    dpg.add_mouse_click_handler(
+        button=dpg.mvMouseButton_Left,  # Left-click to select
+        callback=on_node_click
+    )
+
 with dpg.window(tag="MainWindow", label="main_window"):
     with dpg.menu_bar():
         with dpg.menu(label="File"):
@@ -269,31 +341,47 @@ with dpg.window(tag="MainWindow", label="main_window"):
             dpg.add_menu_item(label="Save")
         with dpg.menu(label="View"):
             dpg.add_menu_item(label="3D Viewer", callback=lambda: app.viewer.show())
+        with dpg.menu(label="Layout"):
+            dpg.add_menu_item(label="Reset Auto-Layout", 
+                              callback=lambda: get_app_singleton().reset_layout())
 
     with dpg.group(horizontal=True):
 
         # Left: Node palette 
         with dpg.child_window(width=250, autosize_y=True):
-            dpg.add_text("Node Library", bullet=True)
-            dpg.add_separator()
-            for node_name in NODE_REGISTRY.keys():
-                dpg.add_button(label=node_name.replace("Node", ""),
-                               width=-1, height=35,
-                               callback=create_node_callback,
-                               user_data=node_name)
+            with dpg.child_window(height=400, autosize_x=True, border=False):
+                dpg.add_text("Node Library", bullet=True)
+                dpg.add_separator()
+                for node_name in NODE_REGISTRY.keys():
+                    dpg.add_button(label=node_name.replace("Node", ""),
+                                width=-1, height=35,
+                                callback=create_node_callback,
+                                user_data=node_name)
+
+            # Left bottom: Property editor 
+            with dpg.child_window(autosize_x=True, border=True):
+                dpg.add_text("Properties", bullet=True)
+                dpg.add_separator()
+                with dpg.group(tag=PROPERTY_EDITOR_TAG):
+                    dpg.add_text("Select a node to edit properties")
 
         # Center: Node editor
         with dpg.child_window(autosize_x=True, autosize_y=True):
             with dpg.node_editor(callback=link_callback,
                                  delink_callback=delink_callback,
+                                 #selection_callback=node_selected,
                                  minimap=True,
                                  minimap_location=dpg.mvNodeMiniMap_Location_BottomRight,
                                  tag="node_editor") as node_editor_tag:
                 print("Created node editor with tag", node_editor_tag)
                 app.node_editor_tag = node_editor_tag
 
+
 # Store nodes in app singleton so link_callback can find them
 app.nodes = {}  # will be filled when nodes call BaseNode.__init__
+
+# Initial clear
+clear_property_editor()
 
 dpg.setup_dearpygui()
 dpg.set_primary_window("MainWindow", True)
